@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ada Kam — Withdrawals</title>
+  <link rel="icon" type="image/png" href="../../ada-kam-browser.png">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{--bg:#0f0f12;--bg2:#1a1a20;--bg3:#24242d;--border:#2e2e3a;--text:#e4e4ec;--text2:#9898a8;--accent:#7c5bfa;--accent-hover:#6a48e6;--green:#2ecc71;--red:#e74c3c;--yellow:#f39c12;--radius:10px;--shadow:0 4px 24px rgba(0,0,0,0.4)}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+    .off{display:none!important}
+    #loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .login-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px 32px;max-width:380px;width:100%;text-align:center;box-shadow:var(--shadow)}
+    .login-logo{width:64px;height:64px;object-fit:contain;margin-bottom:16px;border-radius:12px}
+    .login-box h2{font-size:22px;font-weight:700;margin-bottom:24px;color:var(--accent)}
+    .login-box input{width:100%;padding:14px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:14px;margin-bottom:12px;outline:none;transition:border .2s}
+    .login-box input:focus{border-color:var(--accent)}
+    .login-box button{width:100%;padding:14px;background:var(--accent);border:none;border-radius:var(--radius);color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:background .2s;margin-top:4px}
+    .login-box button:hover{background:var(--accent-hover)}
+    .login-msg{font-size:13px;color:var(--red);margin-bottom:8px;min-height:20px}
+    .login-hint{font-size:12px;color:var(--text2);margin-top:16px}
+    .top-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border)}
+    .top-left{display:flex;align-items:center;gap:10px}
+    .top-logo{width:32px;height:32px;object-fit:contain;border-radius:8px}
+    .top-left span{font-size:16px;font-weight:700;color:var(--accent)}
+    .top-right{display:flex;align-items:center;gap:8px}
+    .top-btn{padding:6px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:12px;cursor:pointer;transition:background .2s;white-space:nowrap}
+    .top-btn:hover{background:var(--red);border-color:var(--red);color:#fff}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--text2);font-size:14px}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:12px 24px;border-radius:var(--radius);font-size:14px;opacity:0;transition:all .3s;z-index:999;white-space:nowrap;pointer-events:none}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .user-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+    .uc-header{padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border)}
+    .uc-email{font-size:13px;font-weight:600;color:var(--text);word-break:break-all}
+    .uc-body{padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+    .uc-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .uc-label{font-size:12px;color:var(--text2);font-weight:500;flex-shrink:0}
+    .uc-value{font-size:13px;color:var(--text);text-align:right;word-break:break-word}
+    .user-grid{display:flex;flex-direction:column;gap:12px}
+    @media(min-width:769px){.user-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}}
+    @media(min-width:1100px){.user-grid{grid-template-columns:repeat(3,1fr)}}
+    .wd-card{padding:18px}
+    .wd-card .uc-header{padding:14px 18px}
+    .wd-card .uc-body{padding:14px 18px;gap:10px}
+    .wd-card .uc-email{font-size:15px}
+    .wd-card .uc-row{padding:4px 0}
+    .wd-card .uc-label{font-size:13px}
+    .wd-card .uc-value{font-size:14px}
+    .wd-amount{font-size:22px;font-weight:800;color:var(--green);display:block;text-align:center;padding:8px 0 4px}
+    .wd-actions{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border)}
+    .wd-actions button{flex:1;padding:10px 8px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .2s;text-align:center}
+    .wd-actions .dim{opacity:.25;background:transparent!important;border:1px solid var(--border);color:var(--text2)}
+    .wd-actions .dim:hover{opacity:.5}
+    .wd-actions .btn-pending{background:var(--yellow);color:#fff}
+    .wd-actions .btn-approve{background:var(--green);color:#fff}
+    .wd-actions .btn-reject{background:var(--red);color:#fff}
+    .wd-stats{margin-top:6px;padding:8px 12px;background:rgba(124,91,250,0.06);border:1px solid rgba(124,91,250,0.15);border-radius:6px;cursor:pointer}
+    .wd-stats-bar{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:var(--text);user-select:none}
+    .wd-stats-bar .s-green{color:var(--green)}
+    .wd-stats-bar .s-red{color:var(--red)}
+    .wd-stats-bar .s-yellow{color:var(--yellow)}
+    .wd-stats-bar .num{font-weight:800;font-size:13px}
+    .ac-alert{margin-top:6px;padding:8px 12px;background:rgba(243,156,18,0.06);border:1px solid rgba(243,156,18,0.15);border-radius:6px;cursor:pointer;user-select:none}
+    .ac-alert-top{font-size:11px;font-weight:600;color:var(--yellow)}
+    .ac-alert-list{display:none;margin-top:6px;flex-direction:column;gap:3px}
+    .ac-alert.open .ac-alert-list{display:flex}
+    .ac-alert-item{font-size:11px;color:var(--yellow);padding:2px 0 2px 10px;border-left:2px solid rgba(243,156,18,0.25)}
+    .cp-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;transition:background .2s;flex-shrink:0;margin-left:4px}
+    .cp-btn:hover{background:rgba(124,91,250,0.12)}
+    .pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 0 4px}
+    .page-btn{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 18px;font-size:14px;cursor:pointer}
+    .page-btn:hover:not(:disabled){background:var(--accent);border-color:var(--accent)}
+    .page-btn:disabled{opacity:.4;cursor:default}
+    .page-info{font-size:14px;color:var(--text2);font-weight:600}
+    .filter-row{display:flex;gap:6px;padding:12px 18px 0;flex-wrap:wrap}
+    .filter-btn{padding:6px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;user-select:none}
+    .filter-btn:hover{border-color:var(--accent);color:var(--text)}
+    .filter-btn.act{background:var(--accent);border-color:var(--accent);color:#fff}
+    @media(max-width:600px){.filter-row{padding:10px 14px 0;gap:4px}.filter-btn{font-size:11px;padding:5px 10px}}
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 18px}
+    .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 12px;text-align:center}
+    .stat-card .num{font-size:24px;font-weight:800}
+    .stat-card .lbl{font-size:11px;color:var(--text2);margin-top:3px}
+    @media(min-width:601px){.stats-row{padding:20px 24px;gap:14px}.stat-card{padding:18px 20px}.stat-card .num{font-size:28px}.stat-card .lbl{font-size:12px}}
+    @media(max-width:600px){.top-bar{padding:10px 14px}.top-left span{font-size:15px}.top-btn{font-size:11px;padding:5px 10px}.login-box{padding:28px 20px}.stats-row{grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 14px}.stat-card{padding:12px 8px}.stat-card .num{font-size:18px}}
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <img src="../../Ada-Kam.png" alt="Ada Kam" class="login-logo">
+      <h2>Withdrawals</h2>
+      <input type="email" id="adminEmail" placeholder="Email" value="admin@adakam.com" readonly>
+      <input type="password" id="adminPass" placeholder="Password" onkeydown="if(event.key==='Enter')adminLogin()">
+      <p id="loginMsg" class="login-msg"></p>
+      <button onclick="adminLogin()">Sign In</button>
+      <p class="login-hint">Use admin@adakam.com</p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="mainScreen" class="off">
+    <div class="top-bar">
+      <div class="top-left">
+        <img src="../../Ada-Kam.png" alt="Ada Kam" class="top-logo">
+        <span>Withdrawals</span>
+      </div>
+      <div class="top-right">
+        <button onclick="loadData()" class="top-btn">Refresh</button>
+        <button onclick="adminLogout()" class="top-btn">Logout</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" id="statPaid">Rs0</div><div class="lbl">Paid</div></div>
+      <div class="stat-card"><div class="num" id="statPendingAmt">Rs0</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="num" id="statRejectedAmt">Rs0</div><div class="lbl">Rejected</div></div>
+      <div class="stat-card"><div class="num" id="statTotalAmt">Rs0</div><div class="lbl">Total</div></div>
+    </div>
+
+    <div class="filter-row">
+      <span class="filter-btn act" data-filter="" onclick="setFilter(this,'')">All</span>
+      <span class="filter-btn" data-filter="pending" onclick="setFilter(this,'pending')">Pending</span>
+      <span class="filter-btn" data-filter="approved" onclick="setFilter(this,'approved')">Approved</span>
+      <span class="filter-btn" data-filter="rejected" onclick="setFilter(this,'rejected')">Rejected</span>
+    </div>
+    <div id="tabContent" style="padding:20px 24px;">
+      <div class="empty-state">sign in to load withdrawals</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    var SUPABASE_URL = 'https://mmxjhaftmkjhtrcnwgfr.supabase.co';
+    var SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1teGpoYWZ0bWtqaHRyY253Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1ODI0MjYsImV4cCI6MjA5ODE1ODQyNn0.Fj4q8hDrxc2J1q6acVSBRBfwLssTgij8EoS693ndC_U';
+    var ADMIN_EMAIL = 'admin@adakam.com';
+    var supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    var _allWithdrawals = [];
+    var _usersMap = {};
+    var _accNumMap = {};
+    var _page = 1;
+    var _filter = '';
+    var PER_PAGE = 5;
+
+    function paginate(arr, p) { var s = (p - 1) * PER_PAGE; return { items: arr.slice(s, s + PER_PAGE), total: arr.length, pages: Math.ceil(arr.length / PER_PAGE) }; }
+
+    async function adminLogin() {
+      var email = document.getElementById('adminEmail').value.trim();
+      var pass = document.getElementById('adminPass').value;
+      var msg = document.getElementById('loginMsg');
+      var btn = document.querySelector('#loginScreen button');
+      if (!pass || pass.length < 4) { msg.textContent = 'enter password'; return; }
+      msg.textContent = ''; btn.disabled = true; btn.textContent = 'signing in...';
+      var { data: { session } } = await supabase.auth.getSession();
+      if (session && session.user && session.user.email === email) { btn.disabled = false; showDashboard(); return; }
+      var { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (error) { msg.textContent = error.message; btn.textContent = 'Sign In'; btn.disabled = false; return; }
+      btn.disabled = false;
+      showDashboard();
+    }
+
+    function adminLogout() {
+      supabase.auth.signOut();
+      localStorage.removeItem('adaKamWdSession');
+      document.getElementById('mainScreen').classList.add('off');
+      document.getElementById('loginScreen').classList.remove('off');
+      document.getElementById('adminPass').value = '';
+      document.getElementById('loginMsg').textContent = '';
+    }
+
+    async function showDashboard() {
+      document.getElementById('loginScreen').classList.add('off');
+      document.getElementById('mainScreen').classList.remove('off');
+      localStorage.setItem('adaKamWdSession', 'true');
+      document.getElementById('tabContent').innerHTML = '<div class="empty-state">loading...</div>';
+      await loadData();
+    }
+
+    async function loadData() {
+      document.getElementById('tabContent').innerHTML = '<div class="empty-state">loading...</div>';
+      _page = 1;
+      _allWithdrawals = [];
+      _usersMap = {};
+      await fetchWithdrawals();
+      await fetchUsers();
+      await fetchMissingUsers();
+      buildAccNumMap();
+      render();
+    }
+
+    async function fetchWithdrawals() {
+      var { data, error } = await supabase.from('withdrawals').select('id, user_id, amount, status, created_at').order('created_at', { ascending: false }).limit(500);
+      if (error) { toast(error.message); return; }
+      _allWithdrawals = data || [];
+    }
+
+    async function fetchUsers() {
+      var { data, error } = await supabase.from('users').select('id, email, acc_type, acc_name, acc_num').limit(500);
+      if (error) { toast(error.message); return; }
+      if (data) { data.forEach(function(u) { _usersMap[u.id] = u; }); }
+    }
+
+    async function fetchMissingUsers() {
+      var missing = [];
+      _allWithdrawals.forEach(function(w) {
+        if (w.user_id && !_usersMap[w.user_id] && missing.indexOf(w.user_id) === -1) missing.push(w.user_id);
+      });
+      if (missing.length === 0) return;
+      var { data } = await supabase.from('users').select('id, email, acc_type, acc_name, acc_num').in('id', missing);
+      if (data) { data.forEach(function(u) { _usersMap[u.id] = u; }); }
+    }
+
+    function buildAccNumMap() {
+      _accNumMap = {};
+      Object.keys(_usersMap).forEach(function(id) {
+        var u = _usersMap[id];
+        if (u.acc_num) {
+          if (!_accNumMap[u.acc_num]) _accNumMap[u.acc_num] = [];
+          _accNumMap[u.acc_num].push(u);
+        }
+      });
+    }
+
+    function render() {
+      var source = _filter ? _allWithdrawals.filter(function(w){return w.status===_filter;}) : _allWithdrawals;
+      if (_page > Math.ceil(source.length / PER_PAGE)) _page = Math.max(1, Math.ceil(source.length / PER_PAGE));
+      var p = paginate(source, _page);
+      var container = document.getElementById('tabContent');
+
+      if (source.length === 0) {
+        container.innerHTML = '<div class="empty-state">no withdrawals yet</div>';
+        updateStats();
+        return;
+      }
+
+      var html = '<div class="user-grid">';
+      p.items.forEach(function(w) {
+        html += buildCard(w, _usersMap[w.user_id]);
+      });
+      html += '</div><div id="pageNav"></div>';
+      container.innerHTML = html;
+      updateStats();
+
+      p.items.forEach(function(w) { highlightBtn(w.id, w.status); });
+
+      var el = document.getElementById('pageNav');
+      if (el && p.pages > 1) {
+        el.innerHTML = '<div class="pagination">' +
+          '<button class="page-btn" onclick="goPage(' + (_page - 1) + ')"' + (_page <= 1 ? ' disabled' : '') + '>&#9664;</button>' +
+          '<span class="page-info">' + _page + ' / ' + p.pages + '</span>' +
+          '<button class="page-btn" onclick="goPage(' + (_page + 1) + ')"' + (_page >= p.pages ? ' disabled' : '') + '>&#9654;</button>' +
+          '</div>';
+      }
+    }
+
+    function buildCard(w, u) {
+      var email = u ? u.email : w.user_id;
+      var accType = u ? (u.acc_type || '') : '';
+      var accName = u ? (u.acc_name || '') : '';
+      var accNum = u ? (u.acc_num || '') : '';
+      var date = w.created_at ? new Date(w.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+
+      /* withdrawal stats for this user */
+      var statsHtml = '';
+      if (u) {
+        var userWds = _allWithdrawals.filter(function(x) { return x.user_id === u.id; });
+        var tot = userWds.length;
+        var ap = userWds.filter(function(x) { return x.status === 'approved'; }).length;
+        var rj = userWds.filter(function(x) { return x.status === 'rejected'; }).length;
+        var pn = userWds.filter(function(x) { return x.status === 'pending'; }).length;
+        if (tot > 0) {
+          statsHtml = '<div class="wd-stats">' +
+            '<div class="wd-stats-bar">' +
+              '<span>Total: <span class="num">' + tot + '</span></span>' +
+              '<span><span class="s-green">&#10004; <span class="num">' + ap + '</span></span></span>' +
+              '<span><span class="s-red">&#10008; <span class="num">' + rj + '</span></span></span>' +
+              '<span><span class="s-yellow">&#9203; <span class="num">' + pn + '</span></span></span>' +
+            '</div></div>';
+        }
+      }
+
+      /* shared account number alert */
+      var acHtml = '';
+      if (u && u.acc_num && _accNumMap[u.acc_num] && _accNumMap[u.acc_num].length > 1) {
+        var others = _accNumMap[u.acc_num].filter(function(x) { return x.id !== u.id; });
+        if (others.length > 0) {
+          acHtml = '<div class="ac-alert" onclick="this.classList.toggle(\'open\')">' +
+            '<div class="ac-alert-top">&#9888; ' + others.length + ' user(s) use the same account number &nbsp;<span style="float:right">&#9660;</span></div>' +
+            '<div class="ac-alert-list">';
+          others.forEach(function(o) {
+            var oEmail = o.email || '—';
+            acHtml += '<span class="ac-alert-item">' + esc(oEmail) + '</span>';
+          });
+          acHtml += '</div></div>';
+        }
+      }
+
+      return '<div class="user-card wd-card">' +
+        '<div class="uc-header"><span class="uc-email">' + esc(email) + '</span></div>' +
+        '<div class="wd-amount">Rs' + (w.amount || 0).toFixed(2) + '</div>' +
+        '<div class="uc-body">' +
+          '<div class="uc-row"><span class="uc-label">Acc Type</span><span class="uc-value">' + esc(accType || '—') + '</span></div>' +
+          '<div class="uc-row"><span class="uc-label">Acc Name</span><span class="uc-value">' + esc(accName || '—') + '</span></div>' +
+          '<div class="uc-row"><span class="uc-label">Acc Number</span><span class="uc-value">' + esc(accNum || '—') + (accNum ? '<button class="cp-btn" onclick="event.stopPropagation();copyNum(\'' + esc(accNum) + '\')">copy</button>' : '') + '</span></div>' +
+          '<div class="uc-row"><span class="uc-label">Date</span><span class="uc-value">' + date + '</span></div>' +
+          statsHtml +
+          acHtml +
+        '</div>' +
+        '<div class="wd-actions" data-acts="' + w.id + '">' +
+          '<button class="btn-pending" data-act="pending" data-id="' + w.id + '">Pending</button>' +
+          '<button class="btn-approve" data-act="approved" data-id="' + w.id + '">Approve</button>' +
+          '<button class="btn-reject" data-act="rejected" data-id="' + w.id + '">Reject</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function updateStats() {
+      var paid = _allWithdrawals.filter(function(w) { return w.status === 'approved'; });
+      var pending = _allWithdrawals.filter(function(w) { return w.status === 'pending'; });
+      var rejected = _allWithdrawals.filter(function(w) { return w.status === 'rejected'; });
+      var paidAmt = paid.reduce(function(s,w){return s+(w.amount||0);},0);
+      var pendingAmt = pending.reduce(function(s,w){return s+(w.amount||0);},0);
+      var rejectedAmt = rejected.reduce(function(s,w){return s+(w.amount||0);},0);
+      var totalAmt = paidAmt + pendingAmt + rejectedAmt;
+      document.getElementById('statPaid').textContent = 'Rs' + paidAmt.toFixed(2);
+      document.getElementById('statPendingAmt').textContent = 'Rs' + pendingAmt.toFixed(2);
+      document.getElementById('statRejectedAmt').textContent = 'Rs' + rejectedAmt.toFixed(2);
+      document.getElementById('statTotalAmt').textContent = 'Rs' + totalAmt.toFixed(2);
+    }
+
+    function goPage(p) {
+      if (p < 1) return;
+      _page = p;
+      render();
+    }
+
+    function setFilter(el, f) {
+      document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('act');});
+      el.classList.add('act');
+      _filter = f;
+      _page = 1;
+      render();
+    }
+
+    async function setStatus(id, status) {
+      var { error } = await supabase.from('withdrawals').update({ status: status }).eq('id', id);
+      if (error) { toast(error.message); return; }
+      for (var i = 0; i < _allWithdrawals.length; i++) {
+        if (_allWithdrawals[i].id === id) { _allWithdrawals[i].status = status; break; }
+      }
+      highlightBtn(id, status);
+      updateStats();
+      toast('status: ' + status);
+    }
+
+    function highlightBtn(id, status) {
+      var el = document.querySelector('[data-acts="' + id + '"]');
+      if (!el) return;
+      var btns = el.querySelectorAll('button');
+      btns.forEach(function(b) {
+        if (b.getAttribute('data-act') === status) b.classList.remove('dim');
+        else b.classList.add('dim');
+      });
+    }
+
+    function copyNum(t) { navigator.clipboard.writeText(t).then(function(){toast('copied: '+t);}).catch(function(){toast('failed to copy');}); }
+    function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function toast(m) {
+      var el = document.getElementById('toast');
+      el.textContent = m;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(function() { el.classList.remove('show'); }, 2500);
+    }
+
+    document.getElementById('tabContent').addEventListener('click', function(e) {
+      var target = e.target;
+      var id = target.getAttribute('data-id');
+      var act = target.getAttribute('data-act');
+      if (id && act) setStatus(id, act);
+    });
+
+    (async function() {
+      try {
+        if (localStorage.getItem('adaKamWdSession') === 'true') {
+          var { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user && session.user.email === ADMIN_EMAIL) showDashboard();
+        }
+      } catch(e) {}
+    })();
+  </script>
+</body>
+</html>
